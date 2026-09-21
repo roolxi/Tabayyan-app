@@ -10,6 +10,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.roolxi.tabayyan",
+      "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "نحتاج إلى إذن الكاميرا لالتقاط صورة للآية أو الحديث والتحقق من نصها.",
         "NSPhotoLibraryUsageDescription": "نحتاج إلى إذن مكتبة الصور لاختيار صورة أو فيديو للآية أو الحديث.",
@@ -17,7 +18,8 @@
       }
     },
     "android": {
-      "package": "com.roolxi.tabayyan"
+      "package": "com.roolxi.tabayyan",
+      "versionCode": 1
     },
     "plugins": [
       "expo-router",
