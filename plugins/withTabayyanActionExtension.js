@@ -297,14 +297,35 @@ function withActionExtensionXcodeProject(config, { targetName, extensionBundleId
       path.join(targetName, `${targetName}.entitlements`),
       ...resourceFiles,
     ];
-    xcodeProject.addPbxGroup(extGroupFiles, targetName, targetName);
+    const extGroup = xcodeProject.addPbxGroup(extGroupFiles, targetName, targetName);
+    const rootGroupKey = xcodeProject.getFirstProject().firstProject.mainGroup;
+    const rootGroup = xcodeProject.getPBXGroupByKey(rootGroupKey);
+    if (rootGroup && rootGroup.children && extGroup && extGroup.uuid) {
+      const alreadyInRoot = rootGroup.children.some((c) => c.value === extGroup.uuid);
+      if (!alreadyInRoot) {
+        rootGroup.children.push({
+          value: extGroup.uuid,
+          comment: targetName,
+        });
+      }
+    }
 
     // 5. Add bridge files to main target sources & group
     if (fs.existsSync(mainAppDir)) {
       const bridgeSwift = path.join(mainTargetName, "TabayyanShareBridge.swift");
       const bridgeM = path.join(mainTargetName, "TabayyanShareBridge.m");
-      xcodeProject.addSourceFile(bridgeSwift, { target: mainTargetUuid }, null);
-      xcodeProject.addSourceFile(bridgeM, { target: mainTargetUuid }, null);
+
+      const mainGroupKey =
+        xcodeProject.findPBXGroupKey({ name: mainTargetName }) ||
+        xcodeProject.findPBXGroupKey({ path: mainTargetName }) ||
+        rootGroupKey;
+
+      if (!xcodeProject.hasFile(bridgeSwift)) {
+        xcodeProject.addSourceFile(bridgeSwift, { target: mainTargetUuid }, mainGroupKey);
+      }
+      if (!xcodeProject.hasFile(bridgeM)) {
+        xcodeProject.addSourceFile(bridgeM, { target: mainTargetUuid }, mainGroupKey);
+      }
     }
 
     return config;

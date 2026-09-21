@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+// @ts-ignore
 import xcode from "xcode";
 
 describe("withTabayyanActionExtension Plugin", () => {
@@ -77,5 +78,69 @@ describe("withTabayyanActionExtension Plugin", () => {
     assert.ok(swiftCode.includes("clearPendingSharedPayload"));
     assert.ok(mCode.includes("RCT_EXTERN_MODULE(TabayyanShareBridge, NSObject)"));
   });
-});
 
+  it("modifies Xcode project structure without crashing or missing Plugins group", () => {
+    const proj = xcode.project("test.xcodeproj/project.pbxproj");
+    proj.hash = {
+      project: {
+        objects: {
+          PBXProject: {},
+          PBXGroup: {},
+          PBXNativeTarget: {},
+          PBXSourcesBuildPhase: {},
+          PBXResourcesBuildPhase: {},
+          PBXFrameworksBuildPhase: {},
+          PBXCopyFilesBuildPhase: {},
+          PBXBuildFile: {},
+          PBXFileReference: {},
+          XCConfigurationList: {},
+        },
+      },
+    };
+
+    const mainTargetUuid = proj.generateUuid();
+    const mainGroupUuid = proj.generateUuid();
+
+    proj.hash.project.objects.PBXProject["PROJ_UUID"] = {
+      isa: "PBXProject",
+      mainGroup: mainGroupUuid,
+      targets: [{ value: mainTargetUuid, comment: "tabayyan" }],
+    };
+    proj.hash.project.objects.PBXGroup[mainGroupUuid] = {
+      isa: "PBXGroup",
+      children: [],
+      name: "tabayyan",
+    };
+    proj.hash.project.objects.PBXGroup["PRODUCTS_UUID"] = {
+      isa: "PBXGroup",
+      children: [],
+      name: "Products",
+    };
+    proj.hash.project.objects.PBXNativeTarget[mainTargetUuid] = {
+      isa: "PBXNativeTarget",
+      name: "tabayyan",
+      productName: "tabayyan",
+      buildPhases: [{ value: "SOURCES_UUID", comment: "Sources" }],
+    };
+    proj.hash.project.objects.PBXSourcesBuildPhase["SOURCES_UUID"] = {
+      isa: "PBXSourcesBuildPhase",
+      files: [],
+    };
+    proj.hash.project.objects.PBXSourcesBuildPhase["SOURCES_UUID_comment"] = "Sources";
+
+    const mainTargetName = "tabayyan";
+    const mainGroupKey =
+      proj.findPBXGroupKey({ name: mainTargetName }) ||
+      proj.findPBXGroupKey({ path: mainTargetName }) ||
+      proj.getFirstProject().firstProject.mainGroup;
+
+    assert.ok(mainGroupKey);
+
+    // This must NOT call addPluginFile or crash with Cannot read properties of null (reading 'path')
+    proj.addSourceFile("tabayyan/TabayyanShareBridge.swift", { target: mainTargetUuid }, mainGroupKey);
+    proj.addSourceFile("tabayyan/TabayyanShareBridge.m", { target: mainTargetUuid }, mainGroupKey);
+
+    assert.ok(proj.hasFile("tabayyan/TabayyanShareBridge.swift"));
+    assert.ok(proj.hasFile("tabayyan/TabayyanShareBridge.m"));
+  });
+});
