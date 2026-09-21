@@ -7,24 +7,23 @@ import {
   Text,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { SymbolView } from "expo-symbols";
-import { useIncomingShare } from "expo-sharing";
 
 import { AmbientBackground } from "../src/components/motion/AmbientBackground";
 import { AdaptiveGlass } from "../src/components/glass/AdaptiveGlass";
 import { GlassButton } from "../src/components/glass/GlassButton";
 import { ScanProgress } from "../src/components/motion/ScanProgress";
 import { useScanContext } from "../src/context/ScanContext";
-import { normalizeMediaAsset, uploadMedia } from "../src/api/media";
 import {
   extractSupportedUrlFromText,
   isSupportedMediaUrl,
   pollUrlJob,
   submitUrlJob,
 } from "../src/api/urlMedia";
+import { getPendingSharedPayload, clearPendingSharedPayload } from "../src/native/shareBridge";
 import { MediaExtractResponse, UrlJobStatusResponse } from "../src/api/types";
 import { colors } from "../src/theme/colors";
 import { radii, spacing } from "../src/theme/spacing";
@@ -35,24 +34,19 @@ export default function HandleShareScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { setScanResult } = useScanContext();
-
-  const {
-    sharedPayloads,
-    resolvedSharedPayloads,
-    clearSharedPayloads,
-    isResolving,
-    error: shareError,
-  } = useIncomingShare();
+  const params = useLocalSearchParams<{ url?: string; source?: string }>();
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isComplete, setIsComplete] = useState<boolean>(false);
   const [isError, setIsError] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
-  const [currentStageMessage, setCurrentStageMessage] = useState<string>("جارٍ استلام المحتوى المشارك...");
-  const [mediaKind, setMediaKind] = useState<"image" | "video">("video");
+  const [currentStageMessage, setCurrentStageMessage] = useState<string>(
+    "جارٍ استلام المحتوى المشارك..."
+  );
   const [pendingResult, setPendingResult] = useState<MediaExtractResponse | null>(null);
 
-  const hasHandled = useRef<boolean>(false);
+  const hasProcessedRef = useRef<boolean>(false);
+  const processedUrlRef = useRef<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -64,112 +58,71 @@ export default function HandleShareScreen() {
   }, []);
 
   useEffect(() => {
-    if (hasHandled.current || isResolving) return;
+    if (hasProcessedRef.current) return;
 
-    const payloads =
-      resolvedSharedPayloads && resolvedSharedPayloads.length > 0
-        ? resolvedSharedPayloads
-        : sharedPayloads;
+    const resolveAndProcess = async () => {
+      let candidateUrl: string | null = null;
 
-    if (!payloads || payloads.length === 0) {
-      if (shareError) {
-        setIsError(true);
-        setErrorMessage("تعذر قراءة المحتوى المشارك. حاول مرة أخرى.");
+      // 1. First priority: direct query parameter from custom scheme
+      if (params.url && typeof params.url === "string") {
+        try {
+          candidateUrl = decodeURIComponent(params.url);
+        } catch {
+          candidateUrl = params.url;
+        }
       }
-      return;
-    }
 
-    const payload = payloads[0];
-    hasHandled.current = true;
+      // 2. Second priority: App Group shared container fallback
+      if (!candidateUrl) {
+        const appGroupPayload = await getPendingSharedPayload();
+        if (appGroupPayload && appGroupPayload.url) {
+          candidateUrl = appGroupPayload.url;
+          // Clear immediately after reading to guarantee single consumption
+          await clearPendingSharedPayload();
+        }
+      }
 
-    // Consume the payload immediately to avoid repeated processing on rerenders
-    clearSharedPayloads();
+      if (!candidateUrl) {
+        setIsError(true);
+        setErrorMessage("لم يتم العثور على رابط صالح في المحتوى المشارك.");
+        return;
+      }
 
-    processSharedPayload(payload);
-  }, [sharedPayloads, resolvedSharedPayloads, isResolving, shareError]);
+      const extracted = extractSupportedUrlFromText(candidateUrl);
+      if (!extracted || !isSupportedMediaUrl(extracted)) {
+        setIsError(true);
+        setErrorMessage(
+          "المحتوى المشارك لا يحتوي على رابط مدعوم من يوتيوب (بما فيها Shorts) أو تيك توك أو إنستغرام (Reels)."
+        );
+        return;
+      }
 
-  const processSharedPayload = async (payload: any) => {
+      // Deduplicate: avoid re-triggering for identical URL within same mount
+      if (processedUrlRef.current === extracted) {
+        return;
+      }
+
+      hasProcessedRef.current = true;
+      processedUrlRef.current = extracted;
+
+      await startProcessingUrl(extracted);
+    };
+
+    resolveAndProcess();
+  }, [params.url]);
+
+  const startProcessingUrl = async (url: string) => {
     setIsProcessing(true);
     setIsError(false);
     setIsComplete(false);
     setErrorMessage("");
-
-    const shareType = payload.shareType || "";
-    const contentType = payload.contentType || "";
-    const rawVal = payload.value || "";
-    const contentUri = payload.contentUri || rawVal;
-
-    // 1. Check if it's a local media file (image or video)
-    const isLocalFile =
-      shareType === "image" ||
-      shareType === "video" ||
-      shareType === "file" ||
-      contentType === "image" ||
-      contentType === "video" ||
-      contentType === "file" ||
-      contentUri.startsWith("file://") ||
-      contentUri.startsWith("content://") ||
-      contentUri.startsWith("ph://");
-
-    if (isLocalFile && !isSupportedMediaUrl(rawVal)) {
-      const isVideo =
-        shareType === "video" ||
-        contentType === "video" ||
-        /\.(mp4|mov|webm)$/i.test(contentUri);
-
-      setMediaKind(isVideo ? "video" : "image");
-      setCurrentStageMessage(isVideo ? "جارٍ رفع مقطع الفيديو..." : "جارٍ رفع الصورة...");
-
-      try {
-        const descriptor = normalizeMediaAsset(
-          {
-            uri: contentUri,
-            fileName: payload.originalName || undefined,
-            mimeType: payload.contentMimeType || payload.mimeType || undefined,
-            fileSize: payload.contentSize || undefined,
-            type: isVideo ? "video" : "image",
-          },
-          isVideo ? "video" : "image"
-        );
-
-        abortControllerRef.current = new AbortController();
-        const res = await uploadMedia(descriptor, abortControllerRef.current.signal);
-
-        if (res.status === "candidates" && res.results && res.results.length > 0) {
-          setPendingResult(res);
-          setIsComplete(true);
-        } else {
-          setIsProcessing(false);
-          setIsError(true);
-          setErrorMessage("لم نتمكن من العثور على آية أو حديث موثّق يطابق المحتوى.");
-        }
-      } catch (err: any) {
-        setIsProcessing(false);
-        setIsError(true);
-        setErrorMessage(err.message || "تعذر معالجة الملف المشارك.");
-      }
-      return;
-    }
-
-    // 2. Otherwise treat as URL or text containing URL
-    const textToInspect = `${rawVal} ${contentUri}`;
-    const extractedUrl = extractSupportedUrlFromText(textToInspect);
-
-    if (!extractedUrl) {
-      setIsProcessing(false);
-      setIsError(true);
-      setErrorMessage(
-        "المحتوى المشارك لا يحتوي على رابط صالح من يوتيوب أو تيك توك أو إنستغرام."
-      );
-      return;
-    }
-
-    setMediaKind("video");
     setCurrentStageMessage("جارٍ التحقق من الرابط المشارك...");
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
       abortControllerRef.current = new AbortController();
-      const submitRes = await submitUrlJob(extractedUrl, abortControllerRef.current.signal);
+      const submitRes = await submitUrlJob(url, abortControllerRef.current.signal);
 
       const jobResult: UrlJobStatusResponse = await pollUrlJob(submitRes.jobId, {
         signal: abortControllerRef.current.signal,
@@ -191,15 +144,18 @@ export default function HandleShareScreen() {
         setIsProcessing(false);
         setIsError(true);
         setErrorMessage("لم نتمكن من العثور على آية أو حديث موثّق يطابق المحتوى.");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       } else {
         setIsProcessing(false);
         setIsError(true);
-        setErrorMessage(jobResult.result?.message || "تعذر العثور على نتائج للمقطع.");
+        setErrorMessage(jobResult.result?.message || "تعذر العثور على نتائج موثقة للمقطع.");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       }
     } catch (err: any) {
       setIsProcessing(false);
       setIsError(true);
       setErrorMessage(err.message || "تعذر إكمال فحص الرابط المشارك.");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
 
@@ -263,7 +219,7 @@ export default function HandleShareScreen() {
           {isProcessing || isComplete ? (
             <View style={styles.centerContainer}>
               <ScanProgress
-                mediaType={mediaKind}
+                mediaType="video"
                 isComplete={isComplete}
                 isError={isError}
                 errorMessage={errorMessage}

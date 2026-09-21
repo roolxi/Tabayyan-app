@@ -14,7 +14,16 @@
       "infoPlist": {
         "NSCameraUsageDescription": "نحتاج إلى إذن الكاميرا لالتقاط صورة للآية أو الحديث والتحقق من نصها.",
         "NSPhotoLibraryUsageDescription": "نحتاج إلى إذن مكتبة الصور لاختيار صورة أو فيديو للآية أو الحديث.",
-        "NSMotionUsageDescription": "نحتاج إلى استخدام حساسات الحركة لتقديم تأثيرات تفاعلية هادئة للعدسة."
+        "NSMotionUsageDescription": "نحتاج إلى استخدام حساسات الحركة لتقديم تأثيرات تفاعلية هادئة للعدسة.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true,
+          "NSExceptionDomains": {
+            "10.66.66.2": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": false
+            }
+          }
+        }
       }
     },
     "android": {
@@ -31,25 +40,7 @@
         }
       ],
       "expo-font",
-      [
-        "expo-sharing",
-        {
-          "ios": {
-            "enabled": true,
-            "activationRule": {
-              "supportsText": true,
-              "supportsWebUrlWithMaxCount": 1,
-              "supportsWebPageWithMaxCount": 1,
-              "supportsImageWithMaxCount": 1,
-              "supportsMovieWithMaxCount": 1
-            }
-          },
-          "android": {
-            "enabled": true,
-            "singleShareMimeTypes": ["text/plain", "image/*", "video/*"]
-          }
-        }
-      ]
+      "./plugins/withTabayyanActionExtension"
     ],
     "experiments": {
       "typedRoutes": true
