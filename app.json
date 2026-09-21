@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "تبيّن",
+    "slug": "tabayyan",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "tabayyan",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.roolxi.tabayyan",
+      "infoPlist": {
+        "NSCameraUsageDescription": "نحتاج إلى إذن الكاميرا لالتقاط صورة للآية أو الحديث والتحقق من نصها.",
+        "NSPhotoLibraryUsageDescription": "نحتاج إلى إذن مكتبة الصور لاختيار صورة أو فيديو للآية أو الحديث.",
+        "NSMotionUsageDescription": "نحتاج إلى استخدام حساسات الحركة لتقديم تأثيرات تفاعلية هادئة للعدسة."
+      }
+    },
+    "android": {
+      "package": "com.roolxi.tabayyan"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "نحتاج إلى إذن مكتبة الصور لاختيار صورة أو فيديو للآية أو الحديث.",
+          "cameraPermission": "نحتاج إلى إذن الكاميرا لالتقاط صورة للآية أو الحديث والتحقق من نصها."
+        }
+      ],
+      "expo-font",
+      [
+        "expo-sharing",
+        {
+          "ios": {
+            "enabled": true,
+            "activationRule": {
+              "supportsText": true,
+              "supportsWebUrlWithMaxCount": 1,
+              "supportsWebPageWithMaxCount": 1,
+              "supportsImageWithMaxCount": 1,
+              "supportsMovieWithMaxCount": 1
+            }
+          },
+          "android": {
+            "enabled": true,
+            "singleShareMimeTypes": ["text/plain", "image/*", "video/*"]
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
