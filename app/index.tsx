@@ -197,8 +197,9 @@ export default function HomeScreen() {
 
         {/* Hero Section */}
         <View style={styles.heroSection}>
+          <Text style={{ color: colors.warmGold, fontSize: 12, textAlign: "right", marginBottom: 12 }}>من النصّ إلى المصدر</Text>
           <Text style={[typography.hero, styles.heroTitle]}>
-            النص أمامك.{"\n"}مصدره أقرب مما تتوقع.
+            توقّف لحظة.{"\n"}ثمّ تبيّن.
           </Text>
           <Text style={[typography.bodyMuted, styles.heroSupporting]}>
             ابحث، صوّر، أو ارفع مقطعًا وسنوصلك إلى النص ومصدره الموثّق.
@@ -254,6 +255,22 @@ export default function HomeScreen() {
             </Pressable>
           </View>
         </View>
+
+        <Pressable
+          onPress={() => router.navigate("/scan")}
+          accessibilityRole="button"
+          accessibilityLabel="فحص رابط من يوتيوب أو تيك توك أو إنستغرام"
+          style={{ marginTop: 20, padding: 18, borderRadius: 20, borderWidth: 1,
+            borderColor: colors.glassBorderSubtle, backgroundColor: colors.deepGreen }}
+        >
+          <View style={{ flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center" }}>
+            <Text style={{ color: colors.ivory, fontSize: 16, fontWeight: "600" }}>وصلك مقطع؟ تحقّق من مصدره</Text>
+            <Text style={{ color: colors.warmGold, fontSize: 20 }}>↗</Text>
+          </View>
+          <Text style={{ color: colors.muted, fontSize: 12, textAlign: "right", marginTop: 8 }}>
+            شارك الرابط مع تبيّن، أو الصقه هنا
+          </Text>
+        </Pressable>
 
         {/* Quiet Authoritative Source Statement */}
         <View style={styles.sourceFooter}>
@@ -438,4 +455,3 @@ const styles = StyleSheet.create({
     width: 140,
   },
 });
-

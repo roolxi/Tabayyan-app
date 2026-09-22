@@ -42,11 +42,7 @@ export function redirectSystemPath({
   }
 
   // If path contains handle-share anywhere in path/query, route cleanly to /handle-share
-  if (path.includes("handle-share")) {
-    const queryIndex = path.indexOf("?");
-    const queryString = queryIndex !== -1 ? path.slice(queryIndex) : "";
-    return `/handle-share${queryString}`;
-  }
+  // Never reinterpret arbitrary paths merely because their query mentions a route.
 
   // NOTE: Obsolete routes like /expo-sharing are strictly ignored and never routed.
   return path;

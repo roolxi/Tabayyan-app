@@ -41,17 +41,15 @@ export async function getPendingSharedPayload(): Promise<PendingSharedPayload | 
 /**
  * Clears the pending shared payload in the App Group once consumed.
  */
-export async function clearPendingSharedPayload(): Promise<boolean> {
+export async function clearPendingSharedPayload(expectedId = ""): Promise<boolean> {
   const bridge = getNativeBridge();
   if (!bridge || typeof bridge.clearPendingSharedPayload !== "function") {
     return false;
   }
   try {
-    await bridge.clearPendingSharedPayload();
-    return true;
+    return Boolean(await bridge.clearPendingSharedPayload(expectedId));
   } catch (err) {
     console.warn("[TabayyanShareBridge] Error clearing pending payload:", err);
     return false;
   }
 }
-

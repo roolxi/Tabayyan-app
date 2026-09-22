@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const plist = require("@expo/plist").default;
 const {
   withXcodeProject,
   withEntitlementsPlist,
@@ -45,6 +46,7 @@ function withMainAppEntitlements(config, appGroupId) {
 function withMainAppInfoPlist(config, appGroupId) {
   return withInfoPlist(config, (config) => {
     config.modResults["TabayyanAppGroupId"] = appGroupId;
+    config.modResults.NSLocalNetworkUsageDescription = "يتصل تبيّن بخادم التحقق على شبكتك المحلية أو الخاصة لمعالجة النصوص والوسائط.";
 
     // Configure ATS for local network development server (10.66.66.2)
     const existingAts = config.modResults["NSAppTransportSecurity"] || {};
@@ -94,6 +96,14 @@ function withActionExtensionXcodeProject(config, { targetName, extensionBundleId
       }
     }
 
+    fs.writeFileSync(path.join(targetDir, targetName + ".entitlements"), plist.build({
+      "com.apple.security.application-groups": [appGroupId],
+    }));
+    const extensionInfoPath = path.join(targetDir, "Info.plist");
+    const extensionInfo = plist.parse(fs.readFileSync(extensionInfoPath, "utf8"));
+    extensionInfo.TabayyanAppGroupId = appGroupId;
+    fs.writeFileSync(extensionInfoPath, plist.build(extensionInfo));
+
     const locDirs = ["ar.lproj", "en.lproj"];
     for (const d of locDirs) {
       const srcD = path.join(pluginDir, d);
@@ -104,7 +114,7 @@ function withActionExtensionXcodeProject(config, { targetName, extensionBundleId
     }
 
     // 2. Copy native bridge files into ios/<MainApp>/
-    const mainTargetName = xcodeProject.getFirstTarget().firstTarget.name;
+    const mainTargetName = xcodeProject.getFirstTarget().firstTarget.name.replace(/^"|"$/g, "");
     const mainAppDir = path.join(platformProjectRoot, mainTargetName);
     const bridgeSrcDir = path.join(pluginDir, "bridge");
 
@@ -149,7 +159,10 @@ function withActionExtensionXcodeProject(config, { targetName, extensionBundleId
       GENERATE_INFOPLIST_FILE: "NO",
       INFOPLIST_FILE: `"${targetName}/Info.plist"`,
       INFOPLIST_KEY_CFBundleDisplayName: `"Verify with Tabayyan"`,
-      IPHONEOS_DEPLOYMENT_TARGET: '"16.0"',
+      IPHONEOS_DEPLOYMENT_TARGET: '"16.4"',
+      APPLICATION_EXTENSION_API_ONLY: "YES",
+      PRODUCT_MODULE_NAME: targetName,
+      DEVELOPMENT_LANGUAGE: "en",
       LD_RUNPATH_SEARCH_PATHS: [
         '"$(inherited)"',
         '"@executable_path/Frameworks"',
@@ -202,6 +215,10 @@ function withActionExtensionXcodeProject(config, { targetName, extensionBundleId
       sourceTree: "BUILT_PRODUCTS_DIR",
     });
 
+    // Copy-phase entries must refer to a real PBXBuildFile, not a dangling UUID.
+    productFile.settings = { ATTRIBUTES: ["RemoveHeadersOnCopy"] };
+    xcodeProject.addToPbxBuildFileSection(productFile);
+
     // Add native target
     const pbxNativeTarget = {
       uuid: targetUuid,
@@ -249,14 +266,41 @@ function withActionExtensionXcodeProject(config, { targetName, extensionBundleId
       path.join(targetName, "ar.lproj", "InfoPlist.strings"),
       path.join(targetName, "en.lproj", "InfoPlist.strings"),
     ];
-    xcodeProject.addBuildPhase(
-      resourceFiles,
+    const resourcePhase = xcodeProject.addBuildPhase(
+      [],
       "PBXResourcesBuildPhase",
       targetName,
       targetUuid,
       folderType,
       buildPath
     );
+    // Localizations are ONE resource with language variants, not two files
+    // copied to the same InfoPlist.strings destination.
+    const objects = xcodeProject.hash.project.objects;
+    objects.PBXVariantGroup ||= {};
+    const variantId = xcodeProject.generateUuid();
+    const variantBuildId = xcodeProject.generateUuid();
+    objects.PBXVariantGroup[variantId] = {
+      isa: "PBXVariantGroup", name: "InfoPlist.strings",
+      sourceTree: '"<group>"', children: [],
+    };
+    objects.PBXVariantGroup[variantId + "_comment"] = "InfoPlist.strings";
+    for (const language of ["ar", "en"]) {
+      const refId = xcodeProject.generateUuid();
+      objects.PBXFileReference[refId] = {
+        isa: "PBXFileReference", lastKnownFileType: "text.plist.strings",
+        name: language, path: '"' + targetName + "/" + language + '.lproj/InfoPlist.strings"',
+        sourceTree: '"<group>"',
+      };
+      objects.PBXFileReference[refId + "_comment"] = language;
+      objects.PBXVariantGroup[variantId].children.push({ value: refId, comment: language });
+      xcodeProject.addKnownRegion(language);
+    }
+    objects.PBXBuildFile[variantBuildId] = {
+      isa: "PBXBuildFile", fileRef: variantId, fileRef_comment: "InfoPlist.strings",
+    };
+    objects.PBXBuildFile[variantBuildId + "_comment"] = "InfoPlist.strings in Resources";
+    resourcePhase.buildPhase.files.push({ value: variantBuildId, comment: "InfoPlist.strings in Resources" });
 
     // 3. Frameworks
     xcodeProject.addBuildPhase(
@@ -270,6 +314,9 @@ function withActionExtensionXcodeProject(config, { targetName, extensionBundleId
 
     // 4. Embed in main target via PBXCopyFilesBuildPhase
     const mainTargetUuid = xcodeProject.getFirstTarget().uuid;
+    objects.PBXTargetDependency ||= {};
+    objects.PBXContainerItemProxy ||= {};
+    xcodeProject.addTargetDependency(mainTargetUuid, [targetUuid]);
     xcodeProject.addBuildPhase(
       [],
       "PBXCopyFilesBuildPhase",
@@ -295,9 +342,9 @@ function withActionExtensionXcodeProject(config, { targetName, extensionBundleId
       swiftFilePath,
       path.join(targetName, "Info.plist"),
       path.join(targetName, `${targetName}.entitlements`),
-      ...resourceFiles,
     ];
-    const extGroup = xcodeProject.addPbxGroup(extGroupFiles, targetName, targetName);
+    const extGroup = xcodeProject.addPbxGroup(extGroupFiles, targetName, '""');
+    xcodeProject.getPBXGroupByKey(extGroup.uuid).children.push({ value: variantId, comment: "InfoPlist.strings" });
     const rootGroupKey = xcodeProject.getFirstProject().firstProject.mainGroup;
     const rootGroup = xcodeProject.getPBXGroupByKey(rootGroupKey);
     if (rootGroup && rootGroup.children && extGroup && extGroup.uuid) {
@@ -321,13 +368,22 @@ function withActionExtensionXcodeProject(config, { targetName, extensionBundleId
         rootGroupKey;
 
       if (!xcodeProject.hasFile(bridgeSwift)) {
-        xcodeProject.addSourceFile(bridgeSwift, { target: mainTargetUuid }, mainGroupKey);
+        xcodeProject.addSourceFile(bridgeSwift, { target: mainTargetUuid }, rootGroupKey);
       }
       if (!xcodeProject.hasFile(bridgeM)) {
-        xcodeProject.addSourceFile(bridgeM, { target: mainTargetUuid }, mainGroupKey);
+        xcodeProject.addSourceFile(bridgeM, { target: mainTargetUuid }, rootGroupKey);
       }
     }
 
+    // node-xcode can leave undefined fields which its writer serializes literally.
+    const clean = value => {
+      if (!value || typeof value !== "object") return;
+      for (const key of Object.keys(value)) {
+        if (value[key] === undefined) delete value[key];
+        else clean(value[key]);
+      }
+    };
+    clean(objects);
     return config;
   });
 }
@@ -352,4 +408,3 @@ const withTabayyanActionExtension = (config) => {
 };
 
 module.exports = withTabayyanActionExtension;
-

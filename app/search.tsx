@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -36,6 +36,8 @@ import {
 import { colors } from "../src/theme/colors";
 import { radii, spacing } from "../src/theme/spacing";
 import { typography } from "../src/theme/typography";
+import { LatestRequest } from "../src/utils/latestRequest";
+import { SearchLoading } from "../src/components/motion/SearchLoading";
 
 type SearchTarget = "quran" | "hadith";
 type SearchSubMode = "normal" | "meaning";
@@ -62,17 +64,42 @@ export default function SearchScreen() {
   const [meaningCandidates, setMeaningCandidates] = useState<MeaningCandidate[]>([]);
   const [meaningMessage, setMeaningMessage] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState<boolean>(false);
+  const requests = useRef(new LatestRequest());
+  const resetSearch = () => {
+    requests.current.cancel();
+    setLoading(false);
+    setHasSearched(false);
+    setErrorMessage(null);
+    setQuranResults([]);
+    setHadithResponse(null);
+    setSuggestCandidates([]);
+    setMeaningCandidates([]);
+    setMeaningMessage(null);
+    setQuranApproximateMessage(null);
+  };
+  useEffect(() => () => requests.current.cancel(), []);
 
   // Auto-execute if query passed in route params
   useEffect(() => {
-    if (params.q && params.q.trim()) {
-      handleExecuteSearch(params.q.trim());
+    const nextTarget = params.type === "hadith" ? "hadith" : "quran";
+    const nextMode = params.mode === "meaning" ? "meaning" : "normal";
+    setTarget(nextTarget);
+    setSubMode(nextMode);
+    resetSearch();
+    if (params.q?.trim()) {
+      setQuery(params.q);
+      void handleExecuteSearch(params.q.trim(), nextMode, nextTarget);
     }
-  }, [params.q]);
+  }, [params.q, params.type, params.mode]);
 
-  const handleExecuteSearch = async (overrideQuery?: string) => {
+  const handleExecuteSearch = async (
+    overrideQuery?: string, mode: SearchSubMode = subMode, searchTarget: SearchTarget = target
+  ) => {
     const searchText = (overrideQuery ?? query).trim();
     if (!searchText) return;
+    const controller = requests.current.begin();
+    const signal = controller.signal;
+    const current = () => requests.current.isCurrent(controller);
 
     Keyboard.dismiss();
     setLoading(true);
@@ -88,27 +115,31 @@ export default function SearchScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      if (target === "quran") {
-        if (subMode === "normal") {
-          const res = await searchQuran(searchText);
+      if (searchTarget === "quran") {
+        if (mode === "normal") {
+          const res = await searchQuran(searchText, signal);
+          if (!current()) return;
           setQuranResults(res.results || []);
           if (res.matchType === "approximate" && res.message) {
             setQuranApproximateMessage(res.message);
           }
         } else {
           // Meaning/suggestion search for Quran
-          const res = await suggestQuranPhrases(searchText);
+          const res = await suggestQuranPhrases(searchText, signal);
+          if (!current()) return;
           setSuggestCandidates(res.candidates || []);
           if (res.message) setMeaningMessage(res.message);
         }
       } else {
         // Hadith search
-        if (subMode === "normal") {
-          const res = await searchHadith(searchText, "simple");
+        if (mode === "normal") {
+          const res = await searchHadith(searchText, "simple", signal);
+          if (!current()) return;
           setHadithResponse(res);
         } else {
           // Meaning search for Hadith
-          const res = await searchHadithByMeaning(searchText);
+          const res = await searchHadithByMeaning(searchText, [], signal);
+          if (!current()) return;
           if (res.status === "candidates" && res.candidates) {
             setMeaningCandidates(res.candidates);
           }
@@ -116,18 +147,19 @@ export default function SearchScreen() {
         }
       }
     } catch (err: unknown) {
+      if (!current()) return;
       const msg = (err as { message?: string })?.message || "تعذّر إكمال البحث. حاول مرة أخرى.";
       setErrorMessage(msg);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
-      setLoading(false);
+      if (current()) setLoading(false);
     }
   };
 
   const handlePickCandidate = (phrase: string) => {
     setQuery(phrase);
     setSubMode("normal");
-    handleExecuteSearch(phrase);
+    void handleExecuteSearch(phrase, "normal");
   };
 
   return (
@@ -137,6 +169,8 @@ export default function SearchScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={[styles.headerArea, { paddingTop: insets.top + spacing.sm }]}>
+          <Text style={styles.pageEyebrow}>تبيّن · ابحث بثقة</Text>
+          <Text style={styles.pageTitle}>لكلّ نصّ مصدر.</Text>
           {/* Target Selector Segment (القرآن / الحديث) */}
           <AdaptiveGlass borderRadius={radii.full} style={styles.segmentContainer}>
             <View style={styles.segmentRow}>
@@ -144,7 +178,7 @@ export default function SearchScreen() {
                 onPress={() => {
                   Haptics.selectionAsync();
                   setTarget("quran");
-                  setHasSearched(false);
+                  resetSearch();
                 }}
                 style={[
                   styles.segmentItem,
@@ -165,7 +199,7 @@ export default function SearchScreen() {
                 onPress={() => {
                   Haptics.selectionAsync();
                   setTarget("hadith");
-                  setHasSearched(false);
+                  resetSearch();
                 }}
                 style={[
                   styles.segmentItem,
@@ -190,6 +224,7 @@ export default function SearchScreen() {
               onPress={() => {
                 Haptics.selectionAsync();
                 setSubMode("normal");
+                resetSearch();
               }}
               style={[
                 styles.modeButton,
@@ -210,6 +245,7 @@ export default function SearchScreen() {
               onPress={() => {
                 Haptics.selectionAsync();
                 setSubMode("meaning");
+                resetSearch();
               }}
               style={[
                 styles.modeButton,
@@ -232,7 +268,7 @@ export default function SearchScreen() {
             <View style={styles.inputRow}>
               <TextInput
                 value={query}
-                onChangeText={setQuery}
+                onChangeText={(value) => { setQuery(value); resetSearch(); }}
                 onSubmitEditing={() => handleExecuteSearch()}
                 placeholder={
                   subMode === "meaning"
@@ -249,7 +285,8 @@ export default function SearchScreen() {
 
               {query.length > 0 && (
                 <Pressable
-                  onPress={() => setQuery("")}
+                  onPress={() => { setQuery(""); resetSearch(); }}
+                  accessibilityLabel="مسح البحث"
                   hitSlop={8}
                   style={styles.clearButton}
                 >
@@ -283,6 +320,11 @@ export default function SearchScreen() {
 
         {/* Results Stream */}
         <FlatList<QuranVerseItem | HadithRecord>
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          initialNumToRender={5}
+          maxToRenderPerBatch={5}
+          windowSize={5}
           contentContainerStyle={[
             styles.listContent,
             { paddingBottom: insets.bottom + spacing.dockHeight + spacing.xl },
@@ -299,6 +341,16 @@ export default function SearchScreen() {
           }
           ListHeaderComponent={
             <View>
+              {loading && <SearchLoading />}
+              {!hasSearched && !loading && (
+                <View style={styles.emptyNotice}>
+                  <Text style={styles.emptyNoticeTitle}>ابدأ بكلمات تتذكّرها</Text>
+                  <Text style={styles.emptyNoticeText}>لا تحتاج إلى التشكيل. اكتب جزءاً من النص، أو اختر البحث بالمعنى.</Text>
+                </View>
+              )}
+              {!loading && meaningMessage && suggestCandidates.length === 0 && meaningCandidates.length === 0 && (
+                <Text style={styles.approximateNoticeText}>{meaningMessage}</Text>
+              )}
               {quranApproximateMessage ? (
                 <View style={styles.approximateNotice}>
                   <Text style={styles.approximateNoticeText}>
@@ -347,6 +399,7 @@ export default function SearchScreen() {
               {hasSearched &&
                 !loading &&
                 !errorMessage &&
+                !meaningMessage &&
                 quranResults.length === 0 &&
                 (!hadithResponse || hadithResponse.results.length === 0) &&
                 suggestCandidates.length === 0 &&
@@ -381,6 +434,8 @@ export default function SearchScreen() {
 }
 
 const styles = StyleSheet.create({
+  pageEyebrow: { color: colors.warmGold, fontSize: 11, textAlign: "right", marginBottom: 6 },
+  pageTitle: { color: colors.ivory, fontSize: 28, fontWeight: "700", textAlign: "right", marginBottom: 18 },
   container: {
     flex: 1,
   },

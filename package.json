@@ -37,7 +37,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "npx tsx --test test/**/*.test.ts"
+    "test": "node --require ./scripts/register-typescript.cjs --test test/*.test.ts"
   },
   "private": true
 }

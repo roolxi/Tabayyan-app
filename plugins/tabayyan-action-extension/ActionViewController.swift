@@ -1,7 +1,6 @@
 import UIKit
 import UniformTypeIdentifiers
 
-@objc(ActionViewController)
 class ActionViewController: UIViewController {
 
     private let supportedHosts: Set<String> = [
@@ -44,67 +43,36 @@ class ActionViewController: UIViewController {
             return
         }
 
-        var foundProvider: NSItemProvider?
-        var requestedTypeIdentifier: String?
-
-        let urlType = UTType.url.identifier
-        let plainTextType = UTType.plainText.identifier
-        let textType = UTType.text.identifier
-
-        for item in items {
-            guard let attachments = item.attachments else { continue }
-            for provider in attachments {
-                if provider.hasItemConformingToTypeIdentifier(urlType) {
-                    foundProvider = provider
-                    requestedTypeIdentifier = urlType
-                    break
-                } else if provider.hasItemConformingToTypeIdentifier(plainTextType) {
-                    foundProvider = provider
-                    requestedTypeIdentifier = plainTextType
-                    break
-                } else if provider.hasItemConformingToTypeIdentifier(textType) {
-                    foundProvider = provider
-                    requestedTypeIdentifier = textType
-                    break
-                }
-            }
-            if foundProvider != nil { break }
+        let providers = items.flatMap { $0.attachments ?? [] }
+        // Hosts may supply a thumbnail/title BEFORE the actual link.
+        let types = [UTType.url.identifier, UTType.plainText.identifier, UTType.text.identifier]
+        let attempts = types.flatMap { type in
+            providers.filter { $0.hasItemConformingToTypeIdentifier(type) }.map { ($0, type) }
         }
+        loadCandidate(attempts, index: 0, fallback: items.compactMap { $0.attributedContentText?.string }.joined(separator: " "))
+    }
 
-        guard let provider = foundProvider, let typeId = requestedTypeIdentifier else {
-            showError(message: isArabic ? "نوع المحتوى المشارك غير مدعوم." : "Unsupported shared content type.")
+    private func loadCandidate(_ attempts: [(NSItemProvider, String)], index: Int, fallback: String) {
+        guard index < attempts.count else {
+            if let link = extractUrlFromText(fallback), let valid = validateAndNormalizeUrl(link) {
+                handleValidUrl(valid)
+            } else {
+                showError(message: isArabic ? "شارك رابط المقطع من يوتيوب أو تيك توك أو إنستغرام." : "Share a video link from YouTube, TikTok, or Instagram.")
+            }
             return
         }
-
-        provider.loadItem(forTypeIdentifier: typeId, options: nil) { [weak self] (item, error) in
+        let (provider, type) = attempts[index]
+        provider.loadItem(forTypeIdentifier: type, options: nil) { [weak self] item, _ in
             DispatchQueue.main.async {
                 guard let self = self else { return }
-                if let error = error {
-                    NSLog("[TabayyanAction] Error loading item: %@", error.localizedDescription)
-                    self.showError(message: self.isArabic ? "تعذر قراءة المحتوى المشارك." : "Could not read shared content.")
-                    return
+                let text = (item as? URL)?.absoluteString ?? (item as? String)
+                    ?? (item as? Data).flatMap { String(data: $0, encoding: .utf8) }
+                if let text = text, let link = self.extractUrlFromText(text),
+                   let valid = self.validateAndNormalizeUrl(link) {
+                    self.handleValidUrl(valid)
+                } else {
+                    self.loadCandidate(attempts, index: index + 1, fallback: fallback)
                 }
-
-                var candidateUrlString: String?
-
-                if let url = item as? URL {
-                    candidateUrlString = url.absoluteString
-                } else if let text = item as? String {
-                    candidateUrlString = self.extractUrlFromText(text)
-                } else if let data = item as? Data, let text = String(data: data, encoding: .utf8) {
-                    candidateUrlString = self.extractUrlFromText(text)
-                }
-
-                guard let rawUrl = candidateUrlString, let validated = self.validateAndNormalizeUrl(rawUrl) else {
-                    self.showError(
-                        message: self.isArabic
-                            ? "يرجى استخدام رابط صالح من يوتيوب أو تيك توك أو إنستغرام."
-                            : "Please share a valid link from YouTube, TikTok, or Instagram."
-                    )
-                    return
-                }
-
-                self.handleValidUrl(validated)
             }
         }
     }
@@ -149,7 +117,8 @@ class ActionViewController: UIViewController {
         }
 
         // Host validation
-        guard supportedHosts.contains(host) else {
+        guard supportedHosts.contains(host), components.user == nil, components.password == nil,
+              components.port == nil || components.port == 443, !components.path.isEmpty else {
             return nil
         }
 
@@ -165,26 +134,36 @@ class ActionViewController: UIViewController {
     }
 
     private func handleValidUrl(_ validUrl: String) {
+        let payloadId = UUID().uuidString
+        // A suite can be created even without the entitlement: check the actual container.
+        guard FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) != nil else {
+            showError(message: isArabic
+                ? "توقيع التطبيق لا يتيح المشاركة الآمنة. أعد توقيع التطبيق والإضافة مع صلاحية App Groups، أو انسخ الرابط وافتح شاشة الفحص."
+                : "Signing does not permit shared storage. Sign the app AND extension with matching App Groups, or paste the link in Tabayyan.")
+            return
+        }
         // 1. Persist to App Group container
         if let defaults = UserDefaults(suiteName: appGroupId) {
             let payload: [String: Any] = [
                 "url": validUrl,
                 "source": "ios-action",
                 "timestamp": Date().timeIntervalSince1970,
-                "id": UUID().uuidString
+                "id": payloadId
             ]
             defaults.set(payload, forKey: "pendingSharedPayload")
             defaults.synchronize()
         }
 
         // 2. Build deep link: tabayyan://handle-share?url=<percent-encoded-url>&source=ios-action
-        guard let encodedUrlParam = validUrl.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
-            showFallbackSuccessUI()
-            return
-        }
-
-        let deepLinkString = "tabayyan://handle-share?url=\(encodedUrlParam)&source=ios-action"
-        guard let deepLinkUrl = URL(string: deepLinkString) else {
+        var components = URLComponents()
+        components.scheme = "tabayyan"
+        components.host = "handle-share"
+        components.queryItems = [
+            URLQueryItem(name: "url", value: validUrl),
+            URLQueryItem(name: "source", value: "ios-action"),
+            URLQueryItem(name: "id", value: payloadId)
+        ]
+        guard let deepLinkUrl = components.url else {
             showFallbackSuccessUI()
             return
         }
@@ -296,4 +275,3 @@ class ActionViewController: UIViewController {
         extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
     }
 }
-

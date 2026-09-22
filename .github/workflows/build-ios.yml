@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install Dependencies
         run: npm install
@@ -43,6 +43,7 @@ jobs:
 
       - name: Package to IPA
         run: |
+          test -d ./build/Build/Products/Release-iphoneos/*.app/PlugIns/TabayyanAction.appex
           mkdir Payload
           cp -r ./build/Build/Products/Release-iphoneos/*.app Payload/
           zip -r Tabayyan.ipa Payload

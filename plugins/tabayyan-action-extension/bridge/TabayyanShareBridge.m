@@ -5,7 +5,8 @@
 RCT_EXTERN_METHOD(getPendingSharedPayload:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
-RCT_EXTERN_METHOD(clearPendingSharedPayload:(RCTPromiseResolveBlock)resolve
+RCT_EXTERN_METHOD(clearPendingSharedPayload:(NSString *)expectedId
+                  resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
 + (BOOL)requiresMainQueueSetup
@@ -14,4 +15,3 @@ RCT_EXTERN_METHOD(clearPendingSharedPayload:(RCTPromiseResolveBlock)resolve
 }
 
 @end
-

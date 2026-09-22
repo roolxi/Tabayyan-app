@@ -34,7 +34,7 @@ export default function HandleShareScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { setScanResult } = useScanContext();
-  const params = useLocalSearchParams<{ url?: string; source?: string }>();
+  const params = useLocalSearchParams<{ url?: string; source?: string; id?: string }>();
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isComplete, setIsComplete] = useState<boolean>(false);
@@ -48,6 +48,7 @@ export default function HandleShareScreen() {
   const hasProcessedRef = useRef<boolean>(false);
   const processedUrlRef = useRef<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const pendingIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     return () => {
@@ -58,27 +59,27 @@ export default function HandleShareScreen() {
   }, []);
 
   useEffect(() => {
-    if (hasProcessedRef.current) return;
+    let active = true;
+    processedUrlRef.current = null;
 
     const resolveAndProcess = async () => {
       let candidateUrl: string | null = null;
 
       // 1. First priority: direct query parameter from custom scheme
       if (params.url && typeof params.url === "string") {
-        try {
-          candidateUrl = decodeURIComponent(params.url);
-        } catch {
-          candidateUrl = params.url;
-        }
+        // Expo Router has already decoded route parameters.
+        candidateUrl = params.url;
+      }
+      const appGroupPayload = await getPendingSharedPayload();
+      if (!active) return;
+      if (appGroupPayload && (!candidateUrl || candidateUrl === appGroupPayload.url)) {
+        pendingIdRef.current = appGroupPayload.id;
       }
 
       // 2. Second priority: App Group shared container fallback
       if (!candidateUrl) {
-        const appGroupPayload = await getPendingSharedPayload();
         if (appGroupPayload && appGroupPayload.url) {
           candidateUrl = appGroupPayload.url;
-          // Clear immediately after reading to guarantee single consumption
-          await clearPendingSharedPayload();
         }
       }
 
@@ -109,9 +110,14 @@ export default function HandleShareScreen() {
     };
 
     resolveAndProcess();
-  }, [params.url]);
+    return () => { active = false; abortControllerRef.current?.abort(); };
+  }, [params.url, params.id]);
 
   const startProcessingUrl = async (url: string) => {
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    setPendingResult(null);
     setIsProcessing(true);
     setIsError(false);
     setIsComplete(false);
@@ -121,17 +127,23 @@ export default function HandleShareScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      abortControllerRef.current = new AbortController();
-      const submitRes = await submitUrlJob(url, abortControllerRef.current.signal);
+      const submitRes = await submitUrlJob(url, controller.signal);
+      if (controller.signal.aborted) return;
+      if (pendingIdRef.current) {
+        await clearPendingSharedPayload(pendingIdRef.current);
+        pendingIdRef.current = undefined;
+      }
 
       const jobResult: UrlJobStatusResponse = await pollUrlJob(submitRes.jobId, {
-        signal: abortControllerRef.current.signal,
+        signal: controller.signal,
         onProgress: (status) => {
+          if (controller.signal.aborted) return;
           if (status.message) {
             setCurrentStageMessage(status.message);
           }
         },
       });
+      if (controller.signal.aborted) return;
 
       if (
         jobResult.result &&
@@ -152,6 +164,7 @@ export default function HandleShareScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       }
     } catch (err: any) {
+      if (controller.signal.aborted) return;
       setIsProcessing(false);
       setIsError(true);
       setErrorMessage(err.message || "تعذر إكمال فحص الرابط المشارك.");
@@ -238,6 +251,10 @@ export default function HandleShareScreen() {
               <Text style={styles.errorMessage}>{errorMessage}</Text>
 
               <View style={styles.actionButtons}>
+                {processedUrlRef.current && (
+                  <GlassButton label="إعادة المحاولة" variant="primary"
+                    onPress={() => void startProcessingUrl(processedUrlRef.current!)} style={styles.fullButton} />
+                )}
                 <GlassButton
                   label="الانتقال إلى الفحص اليدوي"
                   variant="primary"

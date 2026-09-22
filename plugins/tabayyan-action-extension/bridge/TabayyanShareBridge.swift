@@ -23,12 +23,16 @@ public class TabayyanShareBridge: NSObject {
     }
 
     @objc
-    public func clearPendingSharedPayload(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    public func clearPendingSharedPayload(_ expectedId: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         if let defaults = UserDefaults(suiteName: appGroupId) {
+            guard let current = defaults.dictionary(forKey: "pendingSharedPayload"),
+                  current["id"] as? String == expectedId else {
+                resolve(false)
+                return
+            }
             defaults.removeObject(forKey: "pendingSharedPayload")
             defaults.synchronize()
         }
         resolve(true)
     }
 }
-

@@ -70,7 +70,7 @@ export const GlassDock: React.FC = () => {
   const handleTabPress = (tab: DockTab, index: number) => {
     if (index !== activeIndex) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      router.push(tab.route as unknown as never);
+      router.navigate(tab.route as unknown as never);
     }
   };
 

@@ -9,13 +9,14 @@ import { ScanProvider } from "../src/context/ScanContext";
 import { isConfigured } from "../src/api/client";
 import { colors } from "../src/theme/colors";
 import { spacing } from "../src/theme/spacing";
+import { PendingShareListener } from "../src/components/PendingShareListener";
 
 export default function RootLayout() {
   const pathname = usePathname();
   const configured = isConfigured();
 
   // Hide the dock on the scanning progress screen or ceremonial screens if needed
-  const hideDock = pathname === "/result";
+  const hideDock = pathname === "/result" || pathname === "/handle-share";
 
   return (
     <GestureHandlerRootView style={styles.container}>
@@ -37,7 +38,9 @@ export default function RootLayout() {
             screenOptions={{
               headerShown: false,
               contentStyle: { backgroundColor: colors.obsidian },
-              animation: "fade",
+              animation: "slide_from_right",
+              animationDuration: 280,
+              freezeOnBlur: true,
             }}
           >
             <Stack.Screen name="index" />
@@ -45,7 +48,9 @@ export default function RootLayout() {
             <Stack.Screen name="scan" />
             <Stack.Screen name="result" />
             <Stack.Screen name="about" />
+            <Stack.Screen name="handle-share" />
           </Stack>
+          <PendingShareListener />
 
           {!hideDock && <GlassDock />}
         </ScanProvider>
@@ -85,4 +90,3 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
 });
-
