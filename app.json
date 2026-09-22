@@ -39,6 +39,12 @@
           "cameraPermission": "نحتاج إلى إذن الكاميرا لالتقاط صورة للآية أو الحديث والتحقق من نصها."
         }
       ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "نحتاج إلى إذن الكاميرا لالتقاط صورة للآية أو الحديث والتحقق من نصها."
+        }
+      ],
       "expo-font",
       "./plugins/withTabayyanActionExtension"
     ],

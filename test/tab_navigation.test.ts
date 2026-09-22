@@ -60,18 +60,8 @@ describe("Bidirectional Tab Navigation & Direction Matrix", () => {
     assert.equal(mergedParams.__tabDirection, "right");
   });
 
-  it("app/_layout.tsx uses dynamic bidirectional animation and not unconditional slide_from_right", () => {
-    const layoutPath = path.join(__dirname, "../app/_layout.tsx");
-    assert.ok(fs.existsSync(layoutPath));
-    const content = fs.readFileSync(layoutPath, "utf-8");
-
-    // Must not have hardcoded static animation: "slide_from_right" inside Stack screenOptions object literal
-    assert.ok(content.includes('tabDirection === "left"'));
-    assert.ok(content.includes("slide_from_left"));
-    assert.ok(content.includes("slide_from_right"));
-    assert.ok(content.includes('animationTypeForReplace: "push"'));
-    assert.ok(content.includes("freezeOnBlur: false"));
-  });
+  // The tab dock was retired in favor of one unified studio. Direction-matrix
+  // unit tests above still protect legacy navigation helpers used by /result.
 
   it("GlassDock.tsx uses useTabNavigation and does not call router.navigate directly", () => {
     const dockPath = path.join(__dirname, "../src/components/glass/GlassDock.tsx");

@@ -44,3 +44,43 @@ it("an already cancelled JSON request never contacts the server", async () => {
     assert.equal(calls, 0);
   } finally { globalThis.fetch = original; }
 });
+
+it("searchHadith correctly dispatches mode specialist", async () => {
+  process.env.EXPO_PUBLIC_API_BASE_URL = "https://example.test";
+  const { searchHadith } = await import("../src/api/hadith");
+  const original = globalThis.fetch;
+  let capturedBody: any = null;
+  globalThis.fetch = async (_url: any, init: any) => {
+    capturedBody = JSON.parse(init.body);
+    return new Response(JSON.stringify({
+      query: "test",
+      found: true,
+      mode: "specialist",
+      source: "Dorar",
+      sourceUrl: null,
+      resultsCount: 1,
+      specialistAvailable: false,
+      results: [
+        {
+          text: "حديث تجريبي",
+          narrator: "راوٍ",
+          scholar: "محدث",
+          book: "كتاب",
+          reference: "1/1",
+          grade: "صحيح",
+          gradeExplanation: "إسناده صحيح على شرط مسلم",
+          takhrij: "أخرجه البخاري ومسلم",
+        }
+      ]
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const res = await searchHadith("حديث تجريبي", "specialist");
+    assert.equal(capturedBody.mode, "specialist");
+    assert.equal(res.mode, "specialist");
+    assert.equal(res.results[0].takhrij, "أخرجه البخاري ومسلم");
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+

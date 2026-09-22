@@ -1,5 +1,6 @@
 import { requestJson } from "./client";
 import { ApiError, UrlJobStatusResponse, UrlJobSubmitResponse } from "./types";
+import { perfTracker } from "../utils/perfTracker";
 
 const HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be",
   "tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com",
@@ -41,7 +42,8 @@ export function extractSupportedUrlFromText(text: string): string | null {
  */
 export async function submitUrlJob(
   url: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  perfId?: string
 ): Promise<UrlJobSubmitResponse> {
   const cleaned = url.trim();
   if (!cleaned) {
@@ -53,15 +55,19 @@ export async function submitUrlJob(
     throw error;
   }
 
-  return requestJson<UrlJobSubmitResponse>(
+  if (perfId) perfTracker.recordJobSubmitStart(perfId);
+  const res = await requestJson<UrlJobSubmitResponse>(
     "/api/media/url/jobs",
     {
       method: "POST",
       body: { url: cleaned },
       signal,
       timeoutMs: 15000,
+      perfId,
     }
   );
+  if (perfId) perfTracker.recordJobSubmitDone(perfId);
+  return res;
 }
 
 /**
@@ -86,6 +92,7 @@ export interface PollJobOptions {
   signal?: AbortSignal;
   pollIntervalMs?: number;
   maxTimeoutMs?: number;
+  perfId?: string;
 }
 
 /**
@@ -107,6 +114,8 @@ export async function pollUrlJob(
   const maxTimeout = opts.maxTimeoutMs ?? 180000; // 3 minutes max polling
   const startTime = Date.now();
 
+  if (opts.perfId) perfTracker.recordPollStart(opts.perfId);
+
   while (true) {
     if (opts.signal?.aborted) {
       const error: ApiError = {
@@ -126,6 +135,7 @@ export async function pollUrlJob(
       throw error;
     }
 
+    if (opts.perfId) perfTracker.recordPollCycle(opts.perfId);
     const job = await getUrlJobStatus(jobId, opts.signal);
 
     if (opts.onProgress) {
@@ -133,6 +143,7 @@ export async function pollUrlJob(
     }
 
     if (job.status === "completed") {
+      if (opts.perfId) perfTracker.recordPollDone(opts.perfId);
       return job;
     }
 
