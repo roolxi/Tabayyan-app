@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import { SymbolView } from "expo-symbols";
+import { useTabNavigation } from "../src/hooks/useTabNavigation";
 import { AmbientBackground } from "../src/components/motion/AmbientBackground";
 import { AdaptiveGlass } from "../src/components/glass/AdaptiveGlass";
 import { GlassButton } from "../src/components/glass/GlassButton";
@@ -36,6 +37,7 @@ const MAX_VIDEO_DURATION_SEC = 180; // 3 minutes
 export default function ScanScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { navigateToTab } = useTabNavigation();
   const params = useLocalSearchParams<{
     uri?: string;
     name?: string;
@@ -376,7 +378,7 @@ export default function ScanScreen() {
 
   const handleGoToSearch = () => {
     Haptics.selectionAsync();
-    router.push("/search" as unknown as never);
+    navigateToTab("/search");
   };
 
   return (

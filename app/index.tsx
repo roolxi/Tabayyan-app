@@ -15,6 +15,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import { SymbolView } from "expo-symbols";
 import { normalizeMediaAsset } from "../src/api/media";
+import { useTabNavigation } from "../src/hooks/useTabNavigation";
 import Animated, {
   FadeIn,
   FadeOut,
@@ -36,20 +37,18 @@ const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { navigateToTab } = useTabNavigation();
   const [showCeremonialIntro, setShowCeremonialIntro] = useState<boolean>(false);
 
   // Quick action press handlers
   const handleTextSearch = () => {
     Haptics.selectionAsync();
-    router.push("/search" as unknown as never);
+    navigateToTab("/search");
   };
 
   const handleMeaningSearch = () => {
     Haptics.selectionAsync();
-    router.push({
-      pathname: "/search",
-      params: { mode: "meaning" },
-    } as unknown as never);
+    navigateToTab("/search", { mode: "meaning" });
   };
 
   const handleOpenAbout = () => {
@@ -73,15 +72,12 @@ export default function HomeScreen() {
         const asset = result.assets[0];
         try {
           const descriptor = normalizeMediaAsset(asset, "camera");
-          router.push({
-            pathname: "/scan",
-            params: {
-              uri: descriptor.uri,
-              name: descriptor.name,
-              type: descriptor.type,
-              mediaKind: "image",
-            },
-          } as unknown as never);
+          navigateToTab("/scan", {
+            uri: descriptor.uri,
+            name: descriptor.name,
+            type: descriptor.type,
+            mediaKind: "image",
+          });
         } catch (normErr: unknown) {
           const apiErr = normErr as { message?: string };
           Alert.alert("صيغة غير مدعومة", apiErr.message || "تعذّر معالجة الصورة الملتقطة.");
@@ -102,15 +98,12 @@ export default function HomeScreen() {
         const asset = result.assets[0];
         try {
           const descriptor = normalizeMediaAsset(asset, "image");
-          router.push({
-            pathname: "/scan",
-            params: {
-              uri: descriptor.uri,
-              name: descriptor.name,
-              type: descriptor.type,
-              mediaKind: "image",
-            },
-          } as unknown as never);
+          navigateToTab("/scan", {
+            uri: descriptor.uri,
+            name: descriptor.name,
+            type: descriptor.type,
+            mediaKind: "image",
+          });
         } catch (normErr: unknown) {
           const apiErr = normErr as { message?: string };
           Alert.alert("صيغة غير مدعومة", apiErr.message || "تعذّر معالجة الصورة المختارة.");
@@ -130,15 +123,12 @@ export default function HomeScreen() {
         const asset = result.assets[0];
         try {
           const descriptor = normalizeMediaAsset(asset, "video");
-          router.push({
-            pathname: "/scan",
-            params: {
-              uri: descriptor.uri,
-              name: descriptor.name,
-              type: descriptor.type,
-              mediaKind: "video",
-            },
-          } as unknown as never);
+          navigateToTab("/scan", {
+            uri: descriptor.uri,
+            name: descriptor.name,
+            type: descriptor.type,
+            mediaKind: "video",
+          });
         } catch (normErr: unknown) {
           const apiErr = normErr as { message?: string };
           Alert.alert("صيغة غير مدعومة", apiErr.message || "تعذّر معالجة مقطع الفيديو.");
@@ -257,7 +247,7 @@ export default function HomeScreen() {
         </View>
 
         <Pressable
-          onPress={() => router.navigate("/scan")}
+          onPress={() => navigateToTab("/scan")}
           accessibilityRole="button"
           accessibilityLabel="فحص رابط من يوتيوب أو تيك توك أو إنستغرام"
           style={{ marginTop: 20, padding: 18, borderRadius: 20, borderWidth: 1,

@@ -1,5 +1,5 @@
-import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { AccessibilityInfo, StyleSheet, Text, View } from "react-native";
 import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -14,6 +14,25 @@ import { PendingShareListener } from "../src/components/PendingShareListener";
 export default function RootLayout() {
   const pathname = usePathname();
   const configured = isConfigured();
+  const [reduceMotion, setReduceMotion] = useState<boolean>(false);
+
+  useEffect(() => {
+    let active = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (active) setReduceMotion(enabled);
+      })
+      .catch(() => {});
+
+    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", (enabled) => {
+      setReduceMotion(enabled);
+    });
+
+    return () => {
+      active = false;
+      sub.remove();
+    };
+  }, []);
 
   // Hide the dock on the scanning progress screen or ceremonial screens if needed
   const hideDock = pathname === "/result" || pathname === "/handle-share";
@@ -35,12 +54,26 @@ export default function RootLayout() {
           )}
 
           <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: colors.obsidian },
-              animation: "slide_from_right",
-              animationDuration: 280,
-              freezeOnBlur: true,
+            screenOptions={({ route }) => {
+              const tabDirection = (route.params as Record<string, any> | undefined)?.__tabDirection;
+              let animation: "slide_from_right" | "slide_from_left" | "none" = "slide_from_right";
+
+              if (reduceMotion) {
+                animation = "none";
+              } else if (tabDirection === "left") {
+                animation = "slide_from_left";
+              } else if (tabDirection === "right") {
+                animation = "slide_from_right";
+              }
+
+              return {
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.obsidian },
+                animation,
+                animationDuration: 280,
+                animationTypeForReplace: "push",
+                freezeOnBlur: false,
+              };
             }}
           >
             <Stack.Screen name="index" />

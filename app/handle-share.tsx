@@ -24,6 +24,7 @@ import {
   submitUrlJob,
 } from "../src/api/urlMedia";
 import { getPendingSharedPayload, clearPendingSharedPayload } from "../src/native/shareBridge";
+import { useTabNavigation } from "../src/hooks/useTabNavigation";
 import { MediaExtractResponse, UrlJobStatusResponse } from "../src/api/types";
 import { colors } from "../src/theme/colors";
 import { radii, spacing } from "../src/theme/spacing";
@@ -34,6 +35,7 @@ export default function HandleShareScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { setScanResult } = useScanContext();
+  const { navigateToTab } = useTabNavigation();
   const params = useLocalSearchParams<{ url?: string; source?: string; id?: string }>();
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -65,21 +67,24 @@ export default function HandleShareScreen() {
     const resolveAndProcess = async () => {
       let candidateUrl: string | null = null;
 
-      // 1. First priority: direct query parameter from custom scheme
+      // 1. First and sufficient source: direct query parameter from custom scheme
       if (params.url && typeof params.url === "string") {
         // Expo Router has already decoded route parameters.
         candidateUrl = params.url;
-      }
-      const appGroupPayload = await getPendingSharedPayload();
-      if (!active) return;
-      if (appGroupPayload && (!candidateUrl || candidateUrl === appGroupPayload.url)) {
-        pendingIdRef.current = appGroupPayload.id;
-      }
-
-      // 2. Second priority: App Group shared container fallback
-      if (!candidateUrl) {
-        if (appGroupPayload && appGroupPayload.url) {
-          candidateUrl = appGroupPayload.url;
+        if (params.id && typeof params.id === "string") {
+          pendingIdRef.current = params.id;
+        }
+      } else {
+        // 2. Optional fallback: App Group shared container
+        try {
+          const appGroupPayload = await getPendingSharedPayload();
+          if (!active) return;
+          if (appGroupPayload?.url) {
+            candidateUrl = appGroupPayload.url;
+            pendingIdRef.current = appGroupPayload.id;
+          }
+        } catch {
+          // Ignore App Group failure silently
         }
       }
 
@@ -89,8 +94,15 @@ export default function HandleShareScreen() {
         return;
       }
 
-      const extracted = extractSupportedUrlFromText(candidateUrl);
-      if (!extracted || !isSupportedMediaUrl(extracted)) {
+      // Preserve full URL with query parameters (e.g. igsh, v, list) if already a supported URL
+      let targetUrl: string | null = null;
+      if (isSupportedMediaUrl(candidateUrl)) {
+        targetUrl = candidateUrl;
+      } else {
+        targetUrl = extractSupportedUrlFromText(candidateUrl);
+      }
+
+      if (!targetUrl || !isSupportedMediaUrl(targetUrl)) {
         setIsError(true);
         setErrorMessage(
           "المحتوى المشارك لا يحتوي على رابط مدعوم من يوتيوب (بما فيها Shorts) أو تيك توك أو إنستغرام (Reels)."
@@ -99,14 +111,14 @@ export default function HandleShareScreen() {
       }
 
       // Deduplicate: avoid re-triggering for identical URL within same mount
-      if (processedUrlRef.current === extracted) {
+      if (processedUrlRef.current === targetUrl) {
         return;
       }
 
       hasProcessedRef.current = true;
-      processedUrlRef.current = extracted;
+      processedUrlRef.current = targetUrl;
 
-      await startProcessingUrl(extracted);
+      await startProcessingUrl(targetUrl);
     };
 
     resolveAndProcess();
@@ -185,12 +197,12 @@ export default function HandleShareScreen() {
 
   const handleGoHome = () => {
     Haptics.selectionAsync();
-    router.replace("/" as unknown as never);
+    navigateToTab("/");
   };
 
   const handleGoScan = () => {
     Haptics.selectionAsync();
-    router.replace("/scan" as unknown as never);
+    navigateToTab("/scan");
   };
 
   return (
