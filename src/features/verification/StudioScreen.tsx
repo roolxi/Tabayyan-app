@@ -26,7 +26,6 @@ import { ThoughtLine } from "../../components/experience/ThoughtLine";
 import { SourceCard } from "../../components/experience/SourceCard";
 import { SwipeToast } from "../../components/experience/SwipeToast";
 import { Icon } from "../../components/experience/Icon";
-import { GlassToggle } from "../../components/experience/GlassToggle";
 import { flow, palette, timing } from "../../components/experience/theme";
 import { getPendingSharedPayload } from "../../native/shareBridge";
 import { extractSupportedUrlFromText } from "../../api/urlMedia";
@@ -148,7 +147,7 @@ export default function StudioScreen() {
     linkProgress.value = withTiming(isLinkMode ? 1 : 0, timing);
   }, [isLinkMode]);
   const introStyle = useAnimatedStyle(() => ({
-    height: 270 * introProgress.value,
+    height: 150 * introProgress.value,
     opacity: introProgress.value,
     transform: [{ translateY: -8 * (1 - introProgress.value) }],
   }));
@@ -185,7 +184,7 @@ export default function StudioScreen() {
     );
   }, [showSpecialistToggle]);
   const specialistToggleStyle = useAnimatedStyle(() => ({
-    maxHeight: 56 * specialistProgress.value,
+    maxHeight: 64 * specialistProgress.value,
     opacity: specialistProgress.value,
     marginTop: 6 * specialistProgress.value,
     overflow: "hidden",
@@ -346,7 +345,7 @@ export default function StudioScreen() {
                 )}
                 {Platform.OS === "ios" && (
                   <GlassAction
-                    label="اختصار المشاركة"
+                    label="المشاركة"
                     icon="link"
                     onPress={() => router.push("/shortcut-setup")}
                   />
@@ -364,9 +363,7 @@ export default function StudioScreen() {
               style={[{ overflow: "hidden" }, introStyle]}
             >
               <View style={styles.intro}>
-                <View style={styles.landingLogoPlate}>
-                  <TabayyanLogo width={108} height={90} color="#F4F0E6" />
-                </View>
+
                 <Text style={styles.eyebrow}>
                   مِنَ النَّصِّ إِلَى المَصْدَر
                 </Text>
@@ -462,13 +459,17 @@ export default function StudioScreen() {
                     pointerEvents={showSpecialistToggle ? "auto" : "none"}
                     style={specialistToggleStyle}
                   >
-                    <GlassToggle
-                      label="وضع المتخصص"
-                      supportingText="الروايات وأحكام المحدّثين"
-                      value={v.mode === "specialist"}
-                      onChange={(on) => {
-                        setSpecialistEnabled(on);
-                        v.changeMode(on ? "specialist" : "normal");
+                    <RubberSegment
+                      compact
+                      label="مستوى تفاصيل الحديث"
+                      items={[
+                        { value: "normal", label: "مبسّط" },
+                        { value: "specialist", label: "متخصص · PRO" },
+                      ]}
+                      value={v.mode === "specialist" ? "specialist" : "normal"}
+                      onChange={(mode) => {
+                        setSpecialistEnabled(mode === "specialist");
+                        v.changeMode(mode);
                       }}
                     />
                   </Animated.View>
@@ -765,21 +766,6 @@ const styles = StyleSheet.create({
   },
   brand: { flexDirection: "row-reverse", alignItems: "center", gap: 10 },
   brandName: { fontSize: 26, fontWeight: "700", color: palette.text },
-  landingLogoPlate: {
-    width: 140,
-    height: 112,
-    borderRadius: 24,
-    backgroundColor: "rgba(10, 36, 28, 0.88)",
-    borderWidth: 1,
-    borderColor: "rgba(84, 223, 162, 0.22)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-  },
   navActions: { flexDirection: "row", gap: 8 },
   intro: { paddingTop: 20, paddingBottom: 18, alignItems: "flex-end", gap: 8 },
   eyebrow: { color: palette.mint, fontSize: 10, letterSpacing: 0.6 },
