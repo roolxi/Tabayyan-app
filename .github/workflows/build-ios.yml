@@ -43,7 +43,6 @@ jobs:
 
       - name: Package to IPA
         run: |
-          test -d ./build/Build/Products/Release-iphoneos/*.app/PlugIns/TabayyanAction.appex
           mkdir Payload
           cp -r ./build/Build/Products/Release-iphoneos/*.app Payload/
           zip -r Tabayyan.ipa Payload
