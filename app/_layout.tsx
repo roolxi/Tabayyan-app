@@ -5,7 +5,6 @@ import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ScanProvider } from "../src/context/ScanContext";
-import { PendingShareListener } from "../src/components/PendingShareListener";
 import { palette } from "../src/components/experience/theme";
 export default function RootLayout() {
   const [reduce, setReduce] = useState(true);
@@ -43,6 +42,7 @@ export default function RootLayout() {
             <Stack.Screen name="scan" />
             <Stack.Screen name="handle-share" />
             <Stack.Screen name="result" />
+            <Stack.Screen name="shortcut-setup" options={{ presentation: "modal", animation: reduce ? "none" : "slide_from_bottom" }} />
             <Stack.Screen
               name="about"
               options={{
@@ -51,7 +51,6 @@ export default function RootLayout() {
               }}
             />
           </Stack>
-          <PendingShareListener />
         </ScanProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

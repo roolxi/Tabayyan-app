@@ -38,6 +38,7 @@ import {
   CapturedPhotoAsset,
 } from "../../components/experience/EmbeddedCameraPanel";
 import { normalizeMediaAsset } from "../../api/media";
+import { TabayyanLogo } from "../../components/brand/TabayyanLogo";
 
 export default function StudioScreen() {
   const v = useVerification(),
@@ -147,7 +148,7 @@ export default function StudioScreen() {
     linkProgress.value = withTiming(isLinkMode ? 1 : 0, timing);
   }, [isLinkMode]);
   const introStyle = useAnimatedStyle(() => ({
-    height: 144 * introProgress.value,
+    height: 270 * introProgress.value,
     opacity: introProgress.value,
     transform: [{ translateY: -8 * (1 - introProgress.value) }],
   }));
@@ -325,9 +326,7 @@ export default function StudioScreen() {
           <View>
             <View style={styles.nav}>
               <View style={styles.brand}>
-                <View style={styles.brandMark}>
-                  <View style={styles.markInside} />
-                </View>
+                <TabayyanLogo width={26} height={22} color="#F4F0E6" />
                 <Text style={styles.brandName}>تبيّن</Text>
               </View>
               <View style={styles.navActions}>
@@ -345,6 +344,13 @@ export default function StudioScreen() {
                     }}
                   />
                 )}
+                {Platform.OS === "ios" && (
+                  <GlassAction
+                    label="اختصار المشاركة"
+                    icon="link"
+                    onPress={() => router.push("/shortcut-setup")}
+                  />
+                )}
                 <GlassAction
                   label="عن تبيّن والمصادر"
                   icon="info"
@@ -358,6 +364,9 @@ export default function StudioScreen() {
               style={[{ overflow: "hidden" }, introStyle]}
             >
               <View style={styles.intro}>
+                <View style={styles.landingLogoPlate}>
+                  <TabayyanLogo width={108} height={90} color="#F4F0E6" />
+                </View>
                 <Text style={styles.eyebrow}>
                   مِنَ النَّصِّ إِلَى المَصْدَر
                 </Text>
@@ -756,22 +765,20 @@ const styles = StyleSheet.create({
   },
   brand: { flexDirection: "row-reverse", alignItems: "center", gap: 10 },
   brandName: { fontSize: 26, fontWeight: "700", color: palette.text },
-  brandMark: {
-    width: 22,
-    height: 29,
-    borderRadius: 12,
+  landingLogoPlate: {
+    width: 140,
+    height: 112,
+    borderRadius: 24,
+    backgroundColor: "rgba(10, 36, 28, 0.88)",
     borderWidth: 1,
-    borderColor: "rgba(196,255,215,.75)",
+    borderColor: "rgba(84, 223, 162, 0.22)",
     alignItems: "center",
     justifyContent: "center",
-    transform: [{ rotate: "-23deg" }],
-  },
-  markInside: {
-    width: 9,
-    height: 15,
-    borderRadius: 7,
-    borderWidth: 1,
-    borderColor: palette.green,
+    marginBottom: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
   },
   navActions: { flexDirection: "row", gap: 8 },
   intro: { paddingTop: 20, paddingBottom: 18, alignItems: "flex-end", gap: 8 },

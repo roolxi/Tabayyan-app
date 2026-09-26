@@ -1,3 +1,5 @@
+import { shortcutRoute } from "../src/sharing/shortcut";
+
 /**
  * Native intent redirect handler for Expo Router.
  * Directs incoming shares and custom scheme links to the appropriate route.
@@ -12,6 +14,9 @@ export function redirectSystemPath({
   if (!path || typeof path !== "string") {
     return "/";
   }
+
+  const shortcut = shortcutRoute(path);
+  if (shortcut !== null) return shortcut;
 
   // Handle full custom scheme URLs, e.g.:
   // tabayyan://handle-share?url=https%3A%2F%2Fwww.instagram.com%2Freel%2FEXAMPLE&source=ios-action

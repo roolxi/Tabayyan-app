@@ -23,7 +23,8 @@
               "NSIncludesSubdomains": false
             }
           }
-        }
+        },
+        "NSLocalNetworkUsageDescription": "نحتاج الاتصال بخادم تبيّن على شبكتك المحلية للتحقق من النصوص والوسائط."
       }
     },
     "android": {
@@ -45,8 +46,7 @@
           "cameraPermission": "نحتاج إلى إذن الكاميرا لالتقاط صورة للآية أو الحديث والتحقق من نصها."
         }
       ],
-      "expo-font",
-      "./plugins/withTabayyanActionExtension"
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

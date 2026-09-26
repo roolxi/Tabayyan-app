@@ -1,2 +1,2 @@
-// The original native extension and App Group bridge deliver here unchanged.
+// Receives Shortcuts deep links using the same verification screen and server API.
 export { default } from "../src/features/verification/StudioScreen";
