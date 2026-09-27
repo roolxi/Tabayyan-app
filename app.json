@@ -21,6 +21,10 @@
             "10.66.66.2": {
               "NSExceptionAllowsInsecureHTTPLoads": true,
               "NSIncludesSubdomains": false
+            },
+            "38.242.147.82": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": false
             }
           }
         },

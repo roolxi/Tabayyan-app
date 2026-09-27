@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: macos-latest
     env:
-      EXPO_PUBLIC_API_BASE_URL: "http://10.66.66.2:8000"
+      EXPO_PUBLIC_API_BASE_URL: "http://38.242.147.82:8000"
 
     steps:
       - name: Checkout Code

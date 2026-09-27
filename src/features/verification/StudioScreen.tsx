@@ -345,7 +345,7 @@ export default function StudioScreen() {
                 )}
                 {Platform.OS === "ios" && (
                   <GlassAction
-                    label="المشاركة"
+                    label="الاختصار"
                     icon="link"
                     onPress={() => router.push("/shortcut-setup")}
                   />
@@ -367,7 +367,7 @@ export default function StudioScreen() {
                 <Text style={styles.eyebrow}>
                   مِنَ النَّصِّ إِلَى المَصْدَر
                 </Text>
-                <Text style={styles.title}>للكلمة أصل.</Text>
+                <Text style={styles.title}>كن على بيّنة.</Text>
                 <Text style={styles.subtitle}>
                   اكتب، أرفق، أو ألصق رابطًا. ثم تبيّن.
                 </Text>
@@ -463,8 +463,8 @@ export default function StudioScreen() {
                       compact
                       label="مستوى تفاصيل الحديث"
                       items={[
+                        { value: "specialist", label: "متخصص" },
                         { value: "normal", label: "مبسّط" },
-                        { value: "specialist", label: "متخصص · PRO" },
                       ]}
                       value={v.mode === "specialist" ? "specialist" : "normal"}
                       onChange={(mode) => {

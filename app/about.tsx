@@ -41,7 +41,7 @@ export default function About() {
           />
         </View>
         <AnimatedContent>
-          <Text style={s.lead}>طمأنينة، لها مصدر.</Text>
+          <Text style={s.lead}>كن على بيّنة.</Text>
           <Text style={s.body}>
             نساعدك على الوصول إلى أصل الآية أو الحديث من نص، صورة، أو مقطع.
           </Text>
